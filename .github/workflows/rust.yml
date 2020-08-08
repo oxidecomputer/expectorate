@@ -21,7 +21,7 @@ jobs:
         default: false
         components: rustfmt
     - name: Check style
-      run: cargo +nightly
+      run: cargo +nightly fmt -- --check
 
   build-and-test:
     runs-on: ${{ matrix.os }}
