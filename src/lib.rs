@@ -67,9 +67,10 @@ pub fn assert_contents(path: &str, actual: &str) {
         };
         let expected = dos2unix(&expected_s);
 
-        let changeset = Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
+        let changeset =
+            Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
         if changeset.distance != 0 {
-            println!("{}",changeset);
+            println!("{}", changeset);
             panic!("assertion failed: the contents of the provided string are not equal to the file {} see \
                     diffset above\nset EXPECTORATE=overwrite if these changes are intentional",
                     path
