@@ -71,10 +71,12 @@ pub fn assert_contents(path: &str, actual: &str) {
             Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
         if changeset.distance != 0 {
             println!("{}", changeset);
-            panic!("assertion failed: the contents of the provided string are not equal to the file {} see \
-                    diffset above\nset EXPECTORATE=overwrite if these changes are intentional",
-                    path
-                   );
+            panic!(
+                "assertion failed: the contents of the provided string are \
+                 not equal to the file {} see diffset above\nset \
+                 EXPECTORATE=overwrite if these changes are intentional",
+                path
+            );
         }
     }
 }
