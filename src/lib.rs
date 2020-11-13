@@ -33,7 +33,7 @@
 //! -Ten points for Gaston
 //! ```
 
-use difference::assert_diff;
+use difference::Changeset;
 use newline_converter::dos2unix;
 use std::{env, fs, path::Path};
 
@@ -67,7 +67,15 @@ pub fn assert_contents(path: &str, actual: &str) {
         };
         let expected = dos2unix(&expected_s);
 
-        println!("set EXPECTORATE=overwrite if these changes are intentional");
-        assert_diff!(expected.as_ref(), actual.as_ref(), "\n", 0);
+        let changeset =
+            Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
+        if changeset.distance != 0 {
+            println!("{}", changeset);
+            panic!(
+                r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
+                set EXPECTORATE=overwrite if these changes are intentional"#,
+                path
+            );
+        }
     }
 }
