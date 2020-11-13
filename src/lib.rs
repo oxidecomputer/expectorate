@@ -72,9 +72,8 @@ pub fn assert_contents(path: &str, actual: &str) {
         if changeset.distance != 0 {
             println!("{}", changeset);
             panic!(
-                "assertion failed: the contents of the provided string are \
-                 not equal to the file {} see diffset above\nset \
-                 EXPECTORATE=overwrite if these changes are intentional",
+                r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
+                set EXPECTORATE=overwrite if these changes are intentional"#,
                 path
             );
         }
