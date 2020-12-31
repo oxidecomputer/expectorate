@@ -38,7 +38,8 @@ use newline_converter::dos2unix;
 use std::{env, fs, path::Path};
 
 /// Compare the contents
-pub fn assert_contents(path: &str, actual: &str) {
+pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
+    let path = path.as_ref();
     let ospath = Path::new(path);
     let var = env::var_os("EXPECTORATE");
     let overwrite = match var.as_ref().map(|s| s.as_os_str().to_str()) {
@@ -50,7 +51,7 @@ pub fn assert_contents(path: &str, actual: &str) {
 
     if overwrite {
         if let Err(e) = fs::write(ospath, actual.as_ref()) {
-            panic!("unable to write to {}: {}", path, e.to_string());
+            panic!("unable to write to {}: {}", path.display(), e.to_string());
         }
     } else {
         // Treat non-existant files like an empty file.
@@ -60,7 +61,7 @@ pub fn assert_contents(path: &str, actual: &str) {
                 std::io::ErrorKind::NotFound => String::new(),
                 _ => panic!(
                     "unable to read contents of {}: {}",
-                    path,
+                    path.display(),
                     e.to_string()
                 ),
             },
@@ -74,7 +75,7 @@ pub fn assert_contents(path: &str, actual: &str) {
             panic!(
                 r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
                 set EXPECTORATE=overwrite if these changes are intentional"#,
-                path
+                path.display()
             );
         }
     }
