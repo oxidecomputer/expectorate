@@ -8,7 +8,7 @@ Say you have a function `compose()` that produces a string and you have a file n
 
 ```rust
     let actual: &str = compose();
-    assert_content("lyrics.txt", actual);
+    assert_content!("lyrics.txt", actual);
 ```
 
 If the output doesn't match, you'll see output like this:
