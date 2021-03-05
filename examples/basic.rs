@@ -4,7 +4,7 @@ use expectorate::assert_contents;
 
 fn main() {
     let actual = compose();
-    assert_contents("examples/lyrics.txt", actual);
+    assert_contents!("examples/lyrics.txt", actual);
 }
 
 fn compose() -> &'static str {
