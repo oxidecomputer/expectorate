@@ -9,7 +9,7 @@
 //! ```rust
 //! # fn compose() -> &'static str { "" }
 //! let actual: &str = compose();
-//! expectorate::assert_contents!("lyrics.txt", actual);
+//! expectorate::assert_contents("lyrics.txt", actual);
 //! ```
 //!
 //! If the output doesn't match, the program will panic! and emit the
@@ -37,31 +37,21 @@ use difference::Changeset;
 use newline_converter::dos2unix;
 use std::{env, fs, path::Path};
 
-#[doc(hidden)]
-// This does the actual heavy lifting while the macro allows panics to appear
-// with the line numbers of the test invoking it. We don't intend consumers of
-// the crate to use this directly.
-pub fn do_assert_contents<P: AsRef<Path>>(
-    path: P,
-    actual: &str,
-) -> Result<(), (Option<String>, String)> {
+/// Compare the contents of the file to the string provided
+#[track_caller]
+pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
     let path = path.as_ref();
     let var = env::var_os("EXPECTORATE");
     let overwrite = match var.as_ref().map(|s| s.as_os_str().to_str()) {
         Some(Some("overwrite")) => true,
         _ => false,
     };
+
     let actual = dos2unix(actual);
+
     if overwrite {
         if let Err(e) = fs::write(path, actual.as_ref()) {
-            return Err((
-                None,
-                format!(
-                    "unable to write to {}: {}",
-                    path.display(),
-                    e.to_string()
-                ),
-            ));
+            panic!("unable to write to {}: {}", path.display(), e.to_string());
         }
     } else {
         // Treat non-existant files like an empty file.
@@ -81,33 +71,12 @@ pub fn do_assert_contents<P: AsRef<Path>>(
         let changeset =
             Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
         if changeset.distance != 0 {
-            return Err((
-                Some(changeset.to_string()),
-                format!(
-                    r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
-                    set EXPECTORATE=overwrite if these changes are intentional"#,
-                    path.display()
-                ),
-            ));
+            println!("{}", changeset);
+            panic!(
+                r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
+                set EXPECTORATE=overwrite if these changes are intentional"#,
+                path.display()
+            );
         }
     }
-
-    Ok(())
-}
-
-/// Compare the contents of the file to the data provided
-#[macro_export]
-macro_rules! assert_contents {
-    ($path:expr, $actual:expr) => {
-        match $crate::do_assert_contents($path, $actual) {
-            Ok(_) => {}
-            Err((None, panicstr)) => {
-                panic!(panicstr)
-            }
-            Err((Some(info), panicstr)) => {
-                println!("{}", info);
-                panic!(panicstr);
-            }
-        }
-    };
 }

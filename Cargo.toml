@@ -1,6 +1,6 @@
 [package]
 name = "expectorate"
-version = "2.0.1"
+version = "1.0.3"
 authors = ["Adam H. Leventhal <ahl@oxide.computer>"]
 edition = "2018"
 license = "Apache-2.0"
