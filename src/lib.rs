@@ -1,4 +1,4 @@
-// Copyright 2020 Oxide Computer Company
+// Copyright 2021 Oxide Computer Company
 
 //! This library is for comparing multi-line output to data stored in version
 //! controlled files. It makes it easy to update the contents when should be
@@ -68,9 +68,9 @@ pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
         };
         let expected = dos2unix(&expected_s);
 
-        let changeset =
-            Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
-        if changeset.distance != 0 {
+        if expected != actual {
+            let changeset =
+                Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
             println!("{}", changeset);
             panic!(
                 r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
