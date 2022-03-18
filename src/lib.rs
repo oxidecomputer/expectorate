@@ -33,8 +33,8 @@
 //! -Ten points for Gaston
 //! ```
 
-use difference::Changeset;
 use newline_converter::dos2unix;
+use similar::{udiff::unified_diff, Algorithm};
 use std::{env, fs, path::Path};
 
 /// Compare the contents of the file to the string provided
@@ -69,9 +69,9 @@ pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
         let expected = dos2unix(&expected_s);
 
         if expected != actual {
-            let changeset =
-                Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
-            println!("{}", changeset);
+            let diff =
+                unified_diff(Algorithm::Myers, &expected, &actual, 5, None);
+            println!("{}", diff);
             panic!(
                 r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
                 set EXPECTORATE=overwrite if these changes are intentional"#,
