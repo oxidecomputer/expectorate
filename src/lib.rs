@@ -69,8 +69,13 @@ pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
         let expected = dos2unix(&expected_s);
 
         if expected != actual {
-            let diff =
-                unified_diff(Algorithm::Myers, &expected, &actual, 5, None);
+            let diff = unified_diff(
+                Algorithm::Myers, // default algorithm used by git
+                &expected,
+                &actual,
+                5, // lines before and after
+                None,
+            );
             println!("{}", diff);
             panic!(
                 r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
