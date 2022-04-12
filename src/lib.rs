@@ -33,8 +33,9 @@
 //! -Ten points for Gaston
 //! ```
 
+use console::Style;
 use newline_converter::dos2unix;
-use similar::{udiff::unified_diff, Algorithm};
+use similar::{Algorithm, ChangeTag, TextDiff};
 use std::{env, fs, path::Path};
 
 /// Compare the contents of the file to the string provided
@@ -69,14 +70,28 @@ pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
         let expected = dos2unix(&expected_s);
 
         if expected != actual {
-            let diff = unified_diff(
-                Algorithm::Myers, // default algorithm used by git
-                &expected,
-                &actual,
-                5, // lines before and after
-                None,
-            );
-            println!("{}", diff);
+            for hunk in TextDiff::configure()
+                .algorithm(Algorithm::Myers)
+                .diff_lines(&expected, &actual)
+                .unified_diff()
+                .context_radius(5)
+                .iter_hunks()
+            {
+                println!("{}", hunk.header());
+                for change in hunk.iter_changes() {
+                    let (marker, style) = match change.tag() {
+                        ChangeTag::Delete => ('-', Style::new().red()),
+                        ChangeTag::Insert => ('+', Style::new().green()),
+                        ChangeTag::Equal => (' ', Style::new()),
+                    };
+                    print!("{}", style.apply_to(marker).bold());
+                    print!("{}", style.apply_to(change));
+                    if change.missing_newline() {
+                        println!();
+                    }
+                }
+            }
+            println!();
             panic!(
                 r#"assertion failed: string doesn't match the contents of file: "{}" see diffset above
                 set EXPECTORATE=overwrite if these changes are intentional"#,
