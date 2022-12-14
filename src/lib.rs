@@ -41,9 +41,28 @@ use std::{env, fs, path::Path};
 /// Compare the contents of the file to the string provided
 #[track_caller]
 pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
+    assert_contents_maybe_overwrite(path, actual, true)
+}
+
+/// Compare the contents of the file to the string provided but don't allow expectorate overwrite
+#[track_caller]
+pub fn assert_contents_without_overwrite<P: AsRef<Path>>(
+    path: P,
+    actual: &str,
+) {
+    assert_contents_maybe_overwrite(path, actual, false)
+}
+
+/// Compare the contents of the file to the string provided
+#[track_caller]
+fn assert_contents_maybe_overwrite<P: AsRef<Path>>(
+    path: P,
+    actual: &str,
+    allow_overwrite: bool,
+) {
     let path = path.as_ref();
     let var = env::var_os("EXPECTORATE");
-    let overwrite = match var.as_ref().map(|s| s.as_os_str().to_str()) {
+    let overwrite = allow_overwrite && match var.as_ref().map(|s| s.as_os_str().to_str()) {
         Some(Some("overwrite")) => true,
         _ => false,
     };
