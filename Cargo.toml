@@ -10,6 +10,6 @@ keywords = ["test", "fixture"]
 categories = ["development-tools::testing"]
 
 [dependencies]
-console = "0.15.3"
+console = "0.15.4"
 newline-converter = "0.2.2"
 similar = "2.2.1"
