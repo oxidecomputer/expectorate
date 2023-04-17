@@ -11,5 +11,5 @@ categories = ["development-tools::testing"]
 
 [dependencies]
 console = "0.15.5"
-newline-converter = "0.2.2"
+newline-converter = "0.3.0"
 similar = "2.2.1"
