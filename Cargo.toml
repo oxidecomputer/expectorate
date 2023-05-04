@@ -1,6 +1,6 @@
 [package]
 name = "expectorate"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2021"
 license = "Apache-2.0"
 description = "Library for comparing output to file contents with simple updating"
@@ -9,7 +9,15 @@ readme = "README.md"
 keywords = ["test", "fixture"]
 categories = ["development-tools::testing"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+predicates = ["dep:predicates"]
+
 [dependencies]
 console = "0.15.5"
 newline-converter = "0.3.0"
+predicates = { version = "3.0.3", optional = true }
 similar = "2.2.1"

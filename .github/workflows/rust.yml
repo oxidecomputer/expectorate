@@ -13,24 +13,21 @@ jobs:
   check-style:
     runs-on: ubuntu-22.04
     steps:
-    # actions/checkout@v2
-    - uses: actions/checkout@28c7f3d2b5162b5ddd3dfd9a45aa55eaf396478b
-    - uses: actions-rs/toolchain@b223206e28798aa3c3668bdd6409258e6dc29172
-      with:
-        toolchain: nightly
-        default: false
-        components: rustfmt
+    - uses: actions/checkout@v3.5.0
     - name: Check style
-      run: cargo +nightly fmt -- --check
+      run: cargo fmt -- --check
 
   build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-2022, macos-12]
+        features: [all, default]
+        include:
+          - features: all
+            feature_flags: --all-features
     steps:
-    # actions/checkout@v2
-    - uses: actions/checkout@28c7f3d2b5162b5ddd3dfd9a45aa55eaf396478b
+    - uses: actions/checkout@v3.5.0
     - name: Build
       run: cargo build --tests --verbose
     - name: Run tests
