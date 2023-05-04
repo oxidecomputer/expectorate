@@ -6,17 +6,17 @@ use predicates::{reflection::PredicateReflection, Predicate};
 
 /// Creates a new predicate that ensures equality with the given file.
 ///
-/// To accept the changes, run with `EXPECTORATE=overwrite`.
+/// To accept changes to the file, run with `EXPECTORATE=overwrite`.
 #[cfg_attr(docsrs, doc(cfg(feature = "predicates")))]
 pub fn eq_file(path: impl Into<PathBuf>) -> FilePredicate {
     let path = path.into();
     FilePredicate { path, panic: false }
 }
 
-/// Creates a new predicate that ensures equality with the given file and panic
-/// if there's a mismatch.
+/// Creates a new predicate that ensures equality with the given file and
+/// panics if there's a mismatch.
 ///
-/// To accept the changes, run with `EXPECTORATE=overwrite`.
+/// To accept changes to the file, run with `EXPECTORATE=overwrite`.
 #[cfg_attr(docsrs, doc(cfg(feature = "predicates")))]
 pub fn eq_file_or_panic(path: impl Into<PathBuf>) -> FilePredicate {
     let path = path.into();
