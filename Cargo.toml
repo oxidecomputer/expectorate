@@ -17,7 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 predicates = ["dep:predicates"]
 
 [dependencies]
-console = "0.15.5"
+console = "0.15.7"
 newline-converter = "0.3.0"
 predicates = { version = "3.0.3", optional = true }
 similar = "2.2.1"
