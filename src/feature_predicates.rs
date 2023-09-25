@@ -30,7 +30,7 @@ pub struct FilePredicate {
 
 impl Display for FilePredicate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{} {}", self.path.display(), self.panic)
     }
 }
 

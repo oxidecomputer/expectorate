@@ -39,6 +39,13 @@
 //!
 //! Enable the `predicates` feature for compatibility with `predicates` via
 //! [`eq_file`] and [`eq_file_or_panic`].
+//! # Predicates (feature: predicates)
+
+//! Expectorate can be used in places where you might use the [`predicates`
+//! crate](https://crates.io/crates/predicates). If you're using
+//! `predicates::path::eq_file` you can instead use `expectorate::eq_file` or
+//! `expectorate::eq_file_or_panic`. Populate or update the specified file as
+//! above.
 
 #[cfg(feature = "predicates")]
 mod feature_predicates;
