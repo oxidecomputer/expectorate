@@ -20,4 +20,4 @@ predicates = ["dep:predicates"]
 console = "0.15.7"
 newline-converter = "0.3.0"
 predicates = { version = "3.0.4", optional = true }
-similar = "2.2.1"
+similar = "2.3.0"
