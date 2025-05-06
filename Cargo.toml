@@ -2,6 +2,7 @@
 name = "expectorate"
 version = "1.1.0"
 edition = "2021"
+rust-version = "1.75"
 license = "Apache-2.0"
 description = "Library for comparing output to file contents with simple updating"
 repository = "https://github.com/oxidecomputer/expectorate"
@@ -17,7 +18,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 predicates = ["dep:predicates"]
 
 [dependencies]
+atomicwrites = "0.4.4"
 console = "0.15.7"
 newline-converter = "0.3.0"
 predicates = { version = "3.0.4", optional = true }
 similar = "2.2.1"
+
+[dev-dependencies]
+filetime = "0.2.25"
+tempfile = "3.19.1"
