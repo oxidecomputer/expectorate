@@ -1,4 +1,4 @@
-// Copyright 2023 Oxide Computer Company
+// Copyright 2023-2025 Oxide Computer Company
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
