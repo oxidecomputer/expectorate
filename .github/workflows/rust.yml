@@ -22,12 +22,17 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-2022, macos-12]
+        # 1.75 is the MSRV
+        toolchain: ["1.75", stable]
         features: [all, default]
         include:
           - features: all
             feature_flags: --all-features
     steps:
     - uses: actions/checkout@v3.5.0
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
     - name: Build
       run: cargo build --tests --verbose
     - name: Run tests

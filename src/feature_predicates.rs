@@ -36,7 +36,11 @@ impl Display for FilePredicate {
 
 impl Predicate<str> for FilePredicate {
     fn eval(&self, actual: &str) -> bool {
-        match crate::assert_contents_impl(&self.path, actual) {
+        match crate::assert_contents_impl(
+            &self.path,
+            actual,
+            crate::OverwriteMode::from_env(),
+        ) {
             Err(e) if self.panic => {
                 panic!("assertion failed: {e}")
             }
