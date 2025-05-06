@@ -176,7 +176,10 @@ mod tests {
     #[test]
     fn overwite_same_mtime_doesnt_change() {
         static CONTENTS: &str = "foo";
-        const MTIME: FileTime = FileTime::zero();
+        // Setting the mtime to 1970-01-01 doesn't appear to work on Windows.
+        // Instead, set it to 2000-01-01. The exact time doesn't really matter
+        // here as much as having a fixed value that's in the past.`
+        const MTIME: FileTime = FileTime::from_unix_time(946684800, 0);
 
         let dir = TempDir::with_prefix("expectorate-").unwrap();
         let path = dir.path().join("my-file.txt");
