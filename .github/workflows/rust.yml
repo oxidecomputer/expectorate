@@ -34,6 +34,6 @@ jobs:
       with:
         toolchain: ${{ matrix.toolchain }}
     - name: Build
-      run: cargo build --tests --verbose
+      run: cargo build --tests --verbose ${{ matrix.feature_flags }}
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose ${{ matrix.feature_flags }}
