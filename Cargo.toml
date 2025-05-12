@@ -19,7 +19,7 @@ predicates = ["dep:predicates"]
 
 [dependencies]
 atomicwrites = "0.4.4"
-console = "0.15.7"
+console = "0.15.11"
 newline-converter = "0.3.0"
 predicates = { version = "3.0.4", optional = true }
 similar = "2.2.1"
