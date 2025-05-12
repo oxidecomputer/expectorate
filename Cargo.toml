@@ -26,4 +26,4 @@ similar = "2.2.1"
 
 [dev-dependencies]
 filetime = "0.2.25"
-tempfile = "3.19.1"
+tempfile = "3.20.0"
