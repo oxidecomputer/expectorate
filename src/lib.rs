@@ -58,11 +58,50 @@ use newline_converter::dos2unix;
 use similar::{Algorithm, ChangeTag, TextDiff};
 use std::{env, ffi::OsStr, fs, io::Write, path::Path};
 
+/// Trait for types that can be used as content for comparison.
+pub trait AsContent {
+    /// Get the content as bytes for writing to file.
+    fn as_bytes(&self) -> &[u8];
+
+    /// Check if this content should be treated as text (true) or binary (false).
+    fn is_text(&self) -> bool;
+}
+
+impl AsContent for &str {
+    fn as_bytes(&self) -> &[u8] {
+        (*self).as_bytes()
+    }
+
+    fn is_text(&self) -> bool {
+        true
+    }
+}
+
+impl AsContent for &[u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+
+    fn is_text(&self) -> bool {
+        false
+    }
+}
+
+impl AsContent for &Vec<u8> {
+    fn as_bytes(&self) -> &[u8] {
+        self.as_slice()
+    }
+
+    fn is_text(&self) -> bool {
+        false
+    }
+}
+
 /// Compare the contents of the file to the string provided
 #[track_caller]
-pub fn assert_contents<P: AsRef<Path>>(path: P, actual: &str) {
+pub fn assert_contents<P: AsRef<Path>, C: AsContent>(path: P, actual: C) {
     if let Err(e) =
-        assert_contents_impl(path, actual, OverwriteMode::from_env())
+        assert_contents_impl(path, &actual, OverwriteMode::from_env())
     {
         panic!("assertion failed: {e}")
     }
@@ -87,13 +126,13 @@ impl OverwriteMode {
 
 pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
     path: P,
-    actual: &str,
+    actual: &dyn AsContent,
     mode: OverwriteMode,
 ) -> Result<(), String> {
     let path = path.as_ref();
-    let actual = dos2unix(actual);
+    let actual_bytes = actual.as_bytes();
 
-    let current = match fs::read_to_string(path) {
+    let current = match fs::read(path) {
         Ok(s) => Some(s),
         Err(e) => match e.kind() {
             std::io::ErrorKind::NotFound => None,
@@ -105,7 +144,7 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
         OverwriteMode::Overwrite => {
             // Don't write the file if it's the same contents. This avoids mtime
             // invalidation.
-            if current.as_deref() != Some(&actual) {
+            if current.as_deref() != Some(actual_bytes) {
                 // There's no way to do a compare-and-set kind of operation on
                 // filesystems where you can say "only overwrite this file if the
                 // inode matches what was just read". The closest approximation is
@@ -119,7 +158,7 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
                 let res = f.write(|f| {
                     // We're writing the contents out in one call, so there's no
                     // need to have a BufWriter wrapper.
-                    f.write(actual.as_bytes())
+                    f.write_all(actual_bytes)
                 });
                 if let Err(e) = res {
                     panic!("unable to write to {}: {}", path.display(), e);
@@ -128,40 +167,194 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
         }
         OverwriteMode::Check => {
             // Treat a nonexistent file like an empty file.
-            let expected_s = current.unwrap_or_default();
-            let expected = dos2unix(&expected_s);
+            let expected = current.unwrap_or_default();
 
-            if expected != actual {
-                for hunk in TextDiff::configure()
-                    .algorithm(Algorithm::Myers)
-                    .diff_lines(&expected, &actual)
-                    .unified_diff()
-                    .context_radius(5)
-                    .iter_hunks()
-                {
-                    println!("{}", hunk.header());
-                    for change in hunk.iter_changes() {
-                        let (marker, style) = match change.tag() {
-                            ChangeTag::Delete => ('-', Style::new().red()),
-                            ChangeTag::Insert => ('+', Style::new().green()),
-                            ChangeTag::Equal => (' ', Style::new()),
-                        };
-                        print!("{}", style.apply_to(marker).bold());
-                        print!("{}", style.apply_to(change));
-                        if change.missing_newline() {
-                            println!();
-                        }
+            if expected != actual_bytes {
+                if actual.is_text() {
+                    // Handle text comparison with line-by-line diff, fallback to binary on error
+                    if let Err(text_err) =
+                        show_text_diff(&expected, actual_bytes)
+                    {
+                        eprintln!("Text diff failed: {}", text_err);
+                        eprintln!("Falling back to binary diff:");
+                        show_binary_diff(&expected, actual_bytes)?;
                     }
+                } else {
+                    // Handle binary comparison with binary diff
+                    show_binary_diff(&expected, actual_bytes)?;
                 }
-                println!();
+
                 return Err(format!(
-                    r#"string doesn't match the contents of file: "{}" see diffset above
+                    r#"content doesn't match the contents of file: "{}" see diff above
                 set EXPECTORATE=overwrite if these changes are intentional"#,
                     path.display()
                 ));
             }
         }
     }
+    Ok(())
+}
+
+fn show_text_diff(expected: &[u8], actual: &[u8]) -> Result<(), String> {
+    // Convert both to strings for text comparison
+    let expected_str = String::from_utf8_lossy(expected);
+    let actual_str = String::from_utf8_lossy(actual);
+
+    // Apply DOS to Unix conversion for consistent line endings
+    let expected_normalized = dos2unix(&expected_str);
+    let actual_normalized = dos2unix(&actual_str);
+
+    for hunk in TextDiff::configure()
+        .algorithm(Algorithm::Myers)
+        .diff_lines(&expected_normalized, &actual_normalized)
+        .unified_diff()
+        .context_radius(5)
+        .iter_hunks()
+    {
+        println!("{}", hunk.header());
+        for change in hunk.iter_changes() {
+            let (marker, style) = match change.tag() {
+                ChangeTag::Delete => ('-', Style::new().red()),
+                ChangeTag::Insert => ('+', Style::new().green()),
+                ChangeTag::Equal => (' ', Style::new()),
+            };
+            print!("{}", style.apply_to(marker).bold());
+            print!("{}", style.apply_to(change));
+            if change.missing_newline() {
+                println!();
+            }
+        }
+    }
+    println!();
+    Ok(())
+}
+
+fn show_binary_diff(expected: &[u8], actual: &[u8]) -> Result<(), String> {
+    println!("Binary content differs:");
+
+    // Show file sizes - only show both if they differ
+    if expected.len() == actual.len() {
+        println!("  File size: {} bytes", expected.len());
+    } else {
+        println!("  Expected size: {} bytes", expected.len());
+        println!("  Actual size: {} bytes", actual.len());
+    }
+
+    // Find the first difference
+    let min_len = expected.len().min(actual.len());
+    let mut first_diff_offset = min_len; // Start with the assumption that differences are at the end
+
+    for i in 0..min_len {
+        if expected[i] != actual[i] {
+            first_diff_offset = i;
+            break;
+        }
+    }
+
+    // Only show diff details if there are actual differences
+    if expected != actual {
+        let offset = first_diff_offset;
+        println!("  First difference at byte offset: {}", offset);
+
+        // For small files, show full content with aligned markers
+        if expected.len() <= 32 && actual.len() <= 32 {
+            println!("  Expected: {:02x?}", expected);
+            println!("  Actual:   {:02x?}", actual);
+
+            // Create difference markers aligned with the hex output
+            print!("  Diff:      ");
+
+            let max_len = expected.len().max(actual.len());
+            for i in 0..max_len {
+                let expected_byte = if i < expected.len() {
+                    Some(expected[i])
+                } else {
+                    None
+                };
+                let actual_byte = if i < actual.len() {
+                    Some(actual[i])
+                } else {
+                    None
+                };
+
+                match (expected_byte, actual_byte) {
+                    (Some(e), Some(a)) if e != a => print!("^^"),
+                    (None, Some(_)) => print!("^^"), // Extra byte in actual
+                    (Some(_), None) => print!("^^"), // Missing byte in actual
+                    _ => print!("  "),               // Same or both None
+                }
+
+                // Add spacing to match the hex format (no commas on diff line)
+                if i < max_len - 1 {
+                    print!("  "); // Two spaces to align with ", " in hex output
+                }
+            }
+            println!();
+        } else {
+            // For larger files, show context around the difference
+            let context_start = offset.saturating_sub(8);
+            let context_end_expected = (offset + 16).min(expected.len());
+            let context_end_actual = (offset + 16).min(actual.len());
+
+            if offset < expected.len() {
+                let expected_context =
+                    &expected[context_start..context_end_expected];
+                println!(
+                    "  Expected around offset {}: {:02x?}",
+                    context_start, expected_context
+                );
+            } else {
+                println!("  Expected: <end of file>");
+            }
+
+            if offset < actual.len() {
+                let actual_context = &actual[context_start..context_end_actual];
+                println!(
+                    "  Actual around offset {}:   {:02x?}",
+                    context_start, actual_context
+                );
+            } else {
+                println!("  Actual: <end of file>");
+            }
+
+            // Highlight the specific differences in the context window
+            if offset < min_len {
+                let end_in_context = context_end_expected
+                    .min(context_end_actual)
+                    - context_start;
+
+                print!("  Difference:                ");
+
+                // Print markers for each byte position
+                for i in 0..end_in_context {
+                    let abs_offset = context_start + i;
+                    if abs_offset < min_len
+                        && abs_offset < expected.len()
+                        && abs_offset < actual.len()
+                    {
+                        if expected[abs_offset] != actual[abs_offset] {
+                            print!("^^");
+                        } else {
+                            print!("  ");
+                        }
+
+                        // Add separator spacing (", " between elements, except for last)
+                        if i < end_in_context - 1 {
+                            print!(", ");
+                        }
+                    } else {
+                        // Handle case where one file is shorter
+                        print!("^^");
+                        if i < end_in_context - 1 {
+                            print!(", ");
+                        }
+                    }
+                }
+                println!();
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -189,7 +382,7 @@ mod tests {
         set_file_mtime(&path, MTIME).unwrap();
 
         // Overwrite the contents with the same value.
-        assert_contents_impl(&path, CONTENTS, OverwriteMode::Overwrite)
+        assert_contents_impl(&path, &CONTENTS, OverwriteMode::Overwrite)
             .unwrap();
 
         let meta = fs::metadata(&path).unwrap();
