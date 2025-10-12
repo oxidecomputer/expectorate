@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 // Copyright 2020 Oxide Computer Company
 
 use expectorate::assert_contents;
