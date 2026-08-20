@@ -33,6 +33,13 @@ index e4104c1..ea6beaf 100644
 -Ten points for Gaston
 ```
 
+## Timeouts and output limits
+
+Expectorate limits the time it takes to compute a diff to 500ms and the number
+of lines of output to around 500. For diffs that exceed those limits, the
+suggested procedure is to overwrite the diffs and use `git diff` to inspect the
+differences.
+
 ## Predicates (feature: predicates)
 
 Expectorate can be used in places where you might use the [`predicates`

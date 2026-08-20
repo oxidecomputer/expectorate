@@ -22,8 +22,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-2022, macos-latest]
-        # 1.75 is the MSRV
-        toolchain: ["1.75", stable]
+        # 1.85 is the MSRV
+        toolchain: ["1.85", stable]
         features: [all, default]
         include:
           - features: all
