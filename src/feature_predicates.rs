@@ -40,6 +40,7 @@ impl Predicate<str> for FilePredicate {
             &self.path,
             actual,
             crate::OverwriteMode::from_env(),
+            crate::DiffLimits::default(),
         ) {
             Err(e) if self.panic => {
                 panic!("assertion failed: {e}")
