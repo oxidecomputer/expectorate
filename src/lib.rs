@@ -1,4 +1,4 @@
-// Copyright 2025 Oxide Computer Company
+// Copyright 2026 Oxide Computer Company
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -61,17 +61,17 @@ use std::{env, ffi::OsStr, fs, io::Write, path::Path, time::Duration};
 /// Maximum time to spend computing a diff.
 ///
 /// Myers' algorithm is quadratic in the size of the edit script, so an exact
-/// diff between two wholly different multi-thousand-line files can take tens of
-/// seconds. `similar` honors this as a best-effort deadline, falling back to a
-/// coarser (but still valid) approximation once it expires. Diffs small enough
-/// for a human to read complete in single-digit milliseconds, so this only ever
-/// affects results that [`MAX_DIFF_LINES`] would truncate anyway.
+/// diff between two wholly different multi-thousand-line files can take tens
+/// of seconds. `similar` honors this as a best-effort deadline, falling back
+/// to a coarser (but still valid) approximation once it expires. Diffs small
+/// enough for a human to read complete in single-digit milliseconds, so this
+/// only ever affects results that [`MAX_DIFF_LINES`] would truncate anyway.
 const DIFF_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Maximum number of diff lines to print.
 ///
-/// No one reads past the first few hundred lines; beyond that, `git diff` on an
-/// overwritten file is a better tool than a wall of test output.
+/// No one reads past the first few hundred lines; beyond that, `git diff` on
+/// an overwritten file is a better tool than a wall of test output.
 const MAX_DIFF_LINES: usize = 500;
 
 /// Compare the contents of the file to the string provided
@@ -148,28 +148,25 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
             let expected = dos2unix(&expected_s);
 
             if expected != actual {
-                let diff = TextDiff::configure()
-                    .algorithm(Algorithm::Myers)
-                    .timeout(DIFF_TIMEOUT)
-                    .diff_lines(&expected, &actual);
-
                 let mut printed = 0;
                 let mut truncated = false;
-                'hunks: for hunk in
-                    diff.unified_diff().context_radius(5).iter_hunks()
+                for hunk in TextDiff::configure()
+                    .algorithm(Algorithm::Myers)
+                    .timeout(DIFF_TIMEOUT)
+                    .diff_lines(&expected, &actual)
+                    .unified_diff()
+                    .context_radius(5)
+                    .iter_hunks()
                 {
+                    println!("{}", hunk.header());
+                    printed += 1 + hunk.iter_changes().count();
                     if printed >= MAX_DIFF_LINES {
+                        println!("<remaining output too large>");
                         truncated = true;
                         break;
                     }
-                    println!("{}", hunk.header());
-                    printed += 1;
 
                     for change in hunk.iter_changes() {
-                        if printed >= MAX_DIFF_LINES {
-                            truncated = true;
-                            break 'hunks;
-                        }
                         let (marker, style) = match change.tag() {
                             ChangeTag::Delete => ('-', Style::new().red()),
                             ChangeTag::Insert => ('+', Style::new().green()),
@@ -180,7 +177,6 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
                         if change.missing_newline() {
                             println!();
                         }
-                        printed += 1;
                     }
                 }
                 println!();
@@ -210,16 +206,12 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
 mod tests {
     use super::*;
     use filetime::{set_file_mtime, FileTime};
-    use std::time::Instant;
+    use std::{ops::Range, time::Instant};
     use tempfile::TempDir;
 
-    /// Generate `n` lines of unique text. Lines generated with different
-    /// `seed`s never match each other, so a diff between two such strings has
-    /// an edit script as long as both inputs combined -- the worst case for
-    /// Myers' algorithm.
-    fn lines(n: usize, seed: u64) -> String {
-        (0..n)
-            .map(|i| format!("line {i} of seed {seed}\n"))
+    fn lines(range: Range<usize>, value: u64) -> String {
+        range
+            .map(|i| format!("line {i} of value {value}\n"))
             .collect()
     }
 
@@ -257,12 +249,12 @@ mod tests {
     fn huge_diff_is_bounded() {
         let dir = TempDir::with_prefix("expectorate-").unwrap();
         let path = dir.path().join("my-file.txt");
-        fs::write(&path, lines(20_000, 1)).unwrap();
+        fs::write(&path, lines(0..50_000, 1)).unwrap();
 
         let start = Instant::now();
         let err = assert_contents_impl(
             &path,
-            &lines(20_000, 2),
+            &lines(0..50_000, 2),
             OverwriteMode::Check,
         )
         .unwrap_err();
@@ -282,10 +274,11 @@ mod tests {
     fn large_file_small_change_is_not_truncated() {
         let dir = TempDir::with_prefix("expectorate-").unwrap();
         let path = dir.path().join("my-file.txt");
-        fs::write(&path, lines(20_000, 1)).unwrap();
+        fs::write(&path, lines(0..100_000, 1)).unwrap();
 
-        let mut actual = lines(20_000, 1);
+        let mut actual = lines(0..50_000, 1);
         actual.push_str("one more line\n");
+        actual.push_str(&lines(50_000..100_000, 1));
 
         let err = assert_contents_impl(&path, &actual, OverwriteMode::Check)
             .unwrap_err();
