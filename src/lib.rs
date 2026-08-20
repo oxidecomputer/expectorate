@@ -56,7 +56,23 @@ use atomicwrites::{AtomicFile, OverwriteBehavior};
 use console::Style;
 use newline_converter::dos2unix;
 use similar::{Algorithm, ChangeTag, TextDiff};
-use std::{env, ffi::OsStr, fs, io::Write, path::Path};
+use std::{env, ffi::OsStr, fs, io::Write, path::Path, time::Duration};
+
+/// Maximum time to spend computing a diff.
+///
+/// Myers' algorithm is quadratic in the size of the edit script, so an exact
+/// diff between two wholly different multi-thousand-line files can take tens of
+/// seconds. `similar` honors this as a best-effort deadline, falling back to a
+/// coarser (but still valid) approximation once it expires. Diffs small enough
+/// for a human to read complete in single-digit milliseconds, so this only ever
+/// affects results that [`MAX_DIFF_LINES`] would truncate anyway.
+const DIFF_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Maximum number of diff lines to print.
+///
+/// No one reads past the first few hundred lines; beyond that, `git diff` on an
+/// overwritten file is a better tool than a wall of test output.
+const MAX_DIFF_LINES: usize = 500;
 
 /// Compare the contents of the file to the string provided
 #[track_caller]
@@ -132,15 +148,28 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
             let expected = dos2unix(&expected_s);
 
             if expected != actual {
-                for hunk in TextDiff::configure()
+                let diff = TextDiff::configure()
                     .algorithm(Algorithm::Myers)
-                    .diff_lines(&expected, &actual)
-                    .unified_diff()
-                    .context_radius(5)
-                    .iter_hunks()
+                    .timeout(DIFF_TIMEOUT)
+                    .diff_lines(&expected, &actual);
+
+                let mut printed = 0;
+                let mut truncated = false;
+                'hunks: for hunk in
+                    diff.unified_diff().context_radius(5).iter_hunks()
                 {
+                    if printed >= MAX_DIFF_LINES {
+                        truncated = true;
+                        break;
+                    }
                     println!("{}", hunk.header());
+                    printed += 1;
+
                     for change in hunk.iter_changes() {
+                        if printed >= MAX_DIFF_LINES {
+                            truncated = true;
+                            break 'hunks;
+                        }
                         let (marker, style) = match change.tag() {
                             ChangeTag::Delete => ('-', Style::new().red()),
                             ChangeTag::Insert => ('+', Style::new().green()),
@@ -151,13 +180,25 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
                         if change.missing_newline() {
                             println!();
                         }
+                        printed += 1;
                     }
                 }
                 println!();
+
+                let truncation = if truncated {
+                    format!(
+                        "\n                diff truncated after \
+                         {MAX_DIFF_LINES} lines; overwrite and use e.g. \
+                         `git diff` to see the whole change"
+                    )
+                } else {
+                    String::new()
+                };
                 return Err(format!(
-                    r#"string doesn't match the contents of file: "{}" see diffset above
+                    r#"string doesn't match the contents of file: "{}" see diffset above{}
                 set EXPECTORATE=overwrite if these changes are intentional"#,
-                    path.display()
+                    path.display(),
+                    truncation,
                 ));
             }
         }
@@ -169,7 +210,18 @@ pub(crate) fn assert_contents_impl<P: AsRef<Path>>(
 mod tests {
     use super::*;
     use filetime::{set_file_mtime, FileTime};
+    use std::time::Instant;
     use tempfile::TempDir;
+
+    /// Generate `n` lines of unique text. Lines generated with different
+    /// `seed`s never match each other, so a diff between two such strings has
+    /// an edit script as long as both inputs combined -- the worst case for
+    /// Myers' algorithm.
+    fn lines(n: usize, seed: u64) -> String {
+        (0..n)
+            .map(|i| format!("line {i} of seed {seed}\n"))
+            .collect()
+    }
 
     /// If EXPECTORATE=overwrite is set and the file is unchanged, ensure that
     /// the mtime stays the same.
@@ -196,5 +248,51 @@ mod tests {
         let mtime2 = FileTime::from_last_modification_time(&meta);
 
         assert_eq!(mtime2, MTIME, "mtime is zero");
+    }
+
+    /// A mismatch between two large, wholly different files must neither spend
+    /// unbounded time computing an exact diff nor print all of it. Computing
+    /// this diff exactly takes tens of seconds.
+    #[test]
+    fn huge_diff_is_bounded() {
+        let dir = TempDir::with_prefix("expectorate-").unwrap();
+        let path = dir.path().join("my-file.txt");
+        fs::write(&path, lines(20_000, 1)).unwrap();
+
+        let start = Instant::now();
+        let err = assert_contents_impl(
+            &path,
+            &lines(20_000, 2),
+            OverwriteMode::Check,
+        )
+        .unwrap_err();
+        let elapsed = start.elapsed();
+
+        assert!(err.contains("diff truncated"), "unexpected error: {err}");
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "diff took {elapsed:?}; is DIFF_TIMEOUT still being applied?"
+        );
+    }
+
+    /// A localized change to a large file is cheap to diff exactly, so it must
+    /// still produce a complete diff: the bounds above are for pathological
+    /// cases, not for big files.
+    #[test]
+    fn large_file_small_change_is_not_truncated() {
+        let dir = TempDir::with_prefix("expectorate-").unwrap();
+        let path = dir.path().join("my-file.txt");
+        fs::write(&path, lines(20_000, 1)).unwrap();
+
+        let mut actual = lines(20_000, 1);
+        actual.push_str("one more line\n");
+
+        let err = assert_contents_impl(&path, &actual, OverwriteMode::Check)
+            .unwrap_err();
+
+        assert!(
+            !err.contains("diff truncated"),
+            "diff should not have been truncated: {err}"
+        );
     }
 }
